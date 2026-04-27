@@ -104,10 +104,10 @@
         document.documentElement.style.setProperty('--gallery-logo-height', savedHeight + 'px');
 
         const galleryHtml = `
-        <div class="flex-container" id="station-gallery-outer" style="margin-top: 0px; margin-bottom: 20px; display: ${isGalleryHidden ? 'none' : 'flex'};">
+        <div class="flex-container" id="station-gallery-outer" style="margin-top: -2px; margin-bottom: 20px; display: ${isGalleryHidden ? 'none' : 'flex'};">
             <div id="station-gallery-wrapper" class="panel-100" style="
                 position: relative;
-                padding: 10px 15px 0 15px; 
+                padding: 7px 10px 8px 10px; 
                 box-sizing: border-box; 
                 user-select: none;
                 -webkit-touch-callout: none;
@@ -119,13 +119,21 @@
                     display: flex; 
                     flex-wrap: wrap; 
                     align-items: center;
+                    justify-content: space-between; 
+                    gap: 8px;
                     min-height: calc(var(--gallery-logo-height) + 25px); 
-                    padding: 5px 0 0 0; 
+                    padding: 0; 
                 ">
                 </div>
             </div>
         </div>
         <style>
+            /* Forces left-alignment on the last line (like text-align-last: left) */
+            #station-gallery-scroll::after {
+                content: "";
+                flex: auto;
+            }
+
             .gallery-item {
                 position: relative; flex: 0 0 auto; display: flex; flex-direction: column; 
                 align-items: center; justify-content: center;
@@ -134,18 +142,17 @@
                 padding: 5px 10px; border-radius: 8px;
                 min-width: calc(var(--gallery-logo-height) + 20px);
                 height: calc(var(--gallery-logo-height) + 15px); 
-                box-sizing: border-box; margin: 0 12px 12px 0; 
+                box-sizing: border-box; 
+                margin: 0; 
                 transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.2s ease, border-color 0.2s ease, filter 0.5s ease, opacity 0.5s ease;
                 cursor: pointer;
                 z-index: 1;
             }
             
-            /* Ghost slot: maintains DOM position for lost/deleted stations but stays invisible */
             .gallery-item.hidden-memory {
                 display: none !important;
             }
 
-            /* Scale up the ENTIRE box on hover */
             .gallery-item:hover:not(.edit-mode):not(.drag-placeholder) {
                 transform: scale(1.15); 
                 background: rgba(255, 255, 255, 0.08); 
@@ -165,17 +172,14 @@
             
             .gallery-item .ps-text { font-size: calc(var(--gallery-logo-height) * 0.35); color: #eee; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80px; font-family: Arial, sans-serif; pointer-events: none; transition: color 0.5s ease, opacity 0.5s ease; }
             
-            /* Individual Delete Button */
             .delete-btn { display: none; position: absolute; top: -6px; right: -6px; background: rgba(200, 50, 50, 0.95); color: #fff; border-radius: 50%; width: 18px; height: 18px; font-size: 10px; font-weight: bold; line-height: 16px; text-align: center; cursor: pointer; z-index: 100; box-shadow: 0 2px 4px rgba(0,0,0,0.6); border: 1px solid rgba(255, 255, 255, 0.3); }
             .delete-btn:hover { background: #f00; transform: scale(1.1); }
             .gallery-item.edit-mode .delete-btn { display: block; }
             
-            /* Global Delete All Button */
             .delete-all-btn { display: none; position: absolute; top: 10px; right: 10px; background: rgba(200, 50, 50, 0.95); color: #fff; border-radius: 50%; width: 22px; height: 22px; font-size: 12px; font-weight: bold; line-height: 20px; text-align: center; cursor: pointer; z-index: 100; box-shadow: 0 2px 4px rgba(0,0,0,0.6); border: 1px solid rgba(255, 255, 255, 0.3); }
             .delete-all-btn:hover { background: #f00; transform: scale(1.1); }
             #station-gallery-wrapper.edit-mode .delete-all-btn { display: block; }
 
-            /* Keyframes for standard wiggle */
             @keyframes wiggle { 
                 0% { transform: rotate(0deg); } 
                 25% { transform: rotate(-2deg); } 
@@ -184,7 +188,6 @@
                 100% { transform: rotate(0deg); } 
             }
 
-            /* Keyframes for hovered wiggle (incorporates scale to prevent override) */
             @keyframes wiggleHover { 
                 0% { transform: scale(1.15) rotate(0deg); } 
                 25% { transform: scale(1.15) rotate(-2deg); } 
@@ -193,14 +196,12 @@
                 100% { transform: scale(1.15) rotate(0deg); } 
             }
 
-            /* Edit Mode Base State */
             .gallery-item.edit-mode:not(.drag-placeholder) { 
                 animation: wiggle 0.3s ease-in-out infinite; 
                 background: rgba(255,255,255,0.08); 
                 border-color: rgba(255,255,255,0.2); 
             }
 
-            /* Edit Mode Hover State */
             .gallery-item.edit-mode:hover:not(.drag-placeholder) {
                 animation: wiggleHover 0.3s ease-in-out infinite; 
                 background: rgba(255, 255, 255, 0.08); 
