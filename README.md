@@ -1,7 +1,7 @@
 # Auto Memory
 Automatic memory expansion for the FM-DX web server, which organizes received radio stations in an interactive gallery with logo support.
 
-<img width="350" height="230" alt="retrodesign2" src="https://github.com/user-attachments/assets/df67643b-4ac5-4033-a0bd-b48d3a2cd95f" />
+<img width="1192" height="867" alt="Screenshot 2026-04-27 150015" src="https://github.com/user-attachments/assets/35177bb8-e5bc-4e83-9b6f-ed934f23eb85" />
 
 ## Version 1.0
 
