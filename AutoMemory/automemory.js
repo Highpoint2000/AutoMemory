@@ -13,10 +13,10 @@
     "use strict";
 
     // --- Plugin Metadata & Update Configuration ---
-    var pluginVersion     = "1.0";
+    var pluginVersion     = "0.9";
     var pluginName        = "AutoMemory";
     var pluginHomepageUrl = "https://github.com/Highpoint2000/AutoMemory/releases";
-    var pluginUpdateUrl   = "https://raw.githubusercontent.com/Highpoint2000/AutoMemory/refs/heads/main/automemory.js";
+    var pluginUpdateUrl   = "https://raw.githubusercontent.com/Highpoint2000/AutoMemory/refs/heads/main/AutoMemory/automemory.js";
     var CHECK_FOR_UPDATES = true;
 
     // --- Update Logic ---
@@ -284,6 +284,8 @@
 
         const clone = baseWrapper.cloneNode(true);
         clone.id = 'hide-automemory-wrapper';
+		clone.style.marginTop = "10px"; 
+        clone.style.marginBottom = "10px";
         
         const input = clone.querySelector('input');
         if (input) {
