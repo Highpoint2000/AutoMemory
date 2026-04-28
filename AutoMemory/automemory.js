@@ -659,16 +659,12 @@
                             if (stationGalleryDB[pi].timerId) { clearTimeout(stationGalleryDB[pi].timerId); stationGalleryDB[pi].timerId = null; }
                             if (stationGalleryDB[pi].fading) { stationGalleryDB[pi].fading = false; updated = true; }
                             
-                            if (signal > stationGalleryDB[pi].maxSignal) {
-                                stationGalleryDB[pi].maxSignal = signal;
-                                if (stationGalleryDB[pi].freq !== freq) {
-                                    stationGalleryDB[pi].freq = freq; 
-                                    updated = true;
-                                }
-                            } else if (stationGalleryDB[pi].freq !== freq && signal > 35) {
+                            if (stationGalleryDB[pi].freq !== freq) {
                                 stationGalleryDB[pi].freq = freq;
                                 stationGalleryDB[pi].maxSignal = signal;
                                 updated = true;
+                            } else if (signal > stationGalleryDB[pi].maxSignal) {
+                                stationGalleryDB[pi].maxSignal = signal;
                             }
                             
                             if (stationGalleryDB[pi].program !== program && program !== "") {
