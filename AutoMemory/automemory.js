@@ -3,7 +3,7 @@
 ///  AUTOMEMORY SCRIPT FOR FM-DX-WEBSERVER      (V1.0)   ///
 ///                                                      /// 
 ///                                                      ///
-///  by Highpoint                last update: 27.04.25   ///
+///  by Highpoint                last update: 28.04.25   ///
 ///                                                      ///
 ///  https://github.com/Highpoint2000/RetroDesign        ///
 ///                                                      ///
@@ -62,7 +62,9 @@
     let editMode = false;
     let isGalleryHidden = localStorage.getItem('station_gallery_hidden') === 'true';
     let currentTunedFreq = null; 
-    let dragState = { active: false, clone: null, orig: null, offsetX: 0, offsetY: 0 };
+    
+    // Drag state tracking including a flag to queue re-renders safely
+    let dragState = { active: false, clone: null, orig: null, offsetX: 0, offsetY: 0, needsRender: false };
 
     window._hoveredGalleryPi = null;
 
@@ -99,8 +101,7 @@
             return;
         }
 
-        // Apply size globally so dragging clones don't lose the variable scope
-        let savedHeight = parseFloat(localStorage.getItem('station_gallery_logo_height')) || 28;
+        let savedHeight = parseFloat(localStorage.getItem('station_gallery_logo_height')) || 18;
         document.documentElement.style.setProperty('--gallery-logo-height', savedHeight + 'px');
 
         const galleryHtml = `
@@ -172,11 +173,13 @@
             
             .gallery-item .ps-text { font-size: calc(var(--gallery-logo-height) * 0.35); color: #eee; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80px; font-family: Arial, sans-serif; pointer-events: none; transition: color 0.5s ease, opacity 0.5s ease; }
             
+            /* Individual Delete Button */
             .delete-btn { display: none; position: absolute; top: -6px; right: -6px; background: rgba(200, 50, 50, 0.95); color: #fff; border-radius: 50%; width: 18px; height: 18px; font-size: 10px; font-weight: bold; line-height: 16px; text-align: center; cursor: pointer; z-index: 100; box-shadow: 0 2px 4px rgba(0,0,0,0.6); border: 1px solid rgba(255, 255, 255, 0.3); }
             .delete-btn:hover { background: #f00; transform: scale(1.1); }
             .gallery-item.edit-mode .delete-btn { display: block; }
             
-            .delete-all-btn { display: none; position: absolute; top: 10px; right: 10px; background: rgba(200, 50, 50, 0.95); color: #fff; border-radius: 50%; width: 22px; height: 22px; font-size: 12px; font-weight: bold; line-height: 20px; text-align: center; cursor: pointer; z-index: 100; box-shadow: 0 2px 4px rgba(0,0,0,0.6); border: 1px solid rgba(255, 255, 255, 0.3); }
+            /* Global Delete All Button - MOVED TO BOTTOM RIGHT */
+            .delete-all-btn { display: none; position: absolute; bottom: 8px; right: 10px; background: rgba(200, 50, 50, 0.95); color: #fff; border-radius: 50%; width: 22px; height: 22px; font-size: 12px; font-weight: bold; line-height: 20px; text-align: center; cursor: pointer; z-index: 100; box-shadow: 0 2px 4px rgba(0,0,0,0.6); border: 1px solid rgba(255, 255, 255, 0.3); }
             .delete-all-btn:hover { background: #f00; transform: scale(1.1); }
             #station-gallery-wrapper.edit-mode .delete-all-btn { display: block; }
 
@@ -242,7 +245,6 @@
         tooltip.id = 'gallery-station-tooltip';
         document.body.appendChild(tooltip);
         
-        // Attach Delete All Event
         const delAllBtn = document.getElementById('delete-all-btn');
         if (delAllBtn) {
             delAllBtn.addEventListener('pointerdown', (e) => {
@@ -251,7 +253,7 @@
                 if (confirm("Delete ALL saved memory stations?")) {
                     stationGalleryDB = {};
                     saveDB();
-                    localStorage.removeItem('station_gallery_order'); // Clears position history
+                    localStorage.removeItem('station_gallery_order');
                     renderGallery();
                     toggleEditMode(false);
                 }
@@ -266,7 +268,6 @@
         setTimeout(injectSettingsUI, 1000); 
     }
 
-    // --- SETTINGS MENU INTEGRATION ---
     function injectSettingsUI() {
         if (document.getElementById('hide-automemory-wrapper')) return;
 
@@ -276,7 +277,6 @@
             return;
         }
 
-        // Climb up to the wrapper div to clone the whole setting row safely
         let baseWrapper = imperialInput.parentElement;
         while (baseWrapper && baseWrapper.tagName !== 'DIV') {
             baseWrapper = baseWrapper.parentElement;
@@ -285,7 +285,7 @@
 
         const clone = baseWrapper.cloneNode(true);
         clone.id = 'hide-automemory-wrapper';
-		clone.style.marginTop = "10px"; 
+        clone.style.marginTop = "10px"; 
         clone.style.marginBottom = "10px";
         
         const input = clone.querySelector('input');
@@ -294,7 +294,6 @@
             input.checked = isGalleryHidden;
         }
         
-        // Safely replace text without destroying the DOM structure
         function replaceText(node) {
             if (node.nodeType === 3 && /imperial/i.test(node.nodeValue)) {
                 node.nodeValue = " Hide Auto Memory";
@@ -307,7 +306,6 @@
         }
         replaceText(clone);
 
-        // Attach event listener
         clone.querySelector('input').addEventListener('change', (e) => {
             isGalleryHidden = e.target.checked;
             localStorage.setItem('station_gallery_hidden', isGalleryHidden);
@@ -317,7 +315,6 @@
         baseWrapper.parentNode.insertBefore(clone, baseWrapper.nextSibling);
     }
 
-    // --- ZOOM HANDLER ---
     function initZoomHandler() {
         const outerContainer = document.getElementById("station-gallery-outer");
         if (!outerContainer) return;
@@ -328,7 +325,6 @@
                 e.deltaY < 0 ? currentHeight += 2 : currentHeight -= 2;
                 currentHeight = Math.max(16, Math.min(currentHeight, 100)); 
                 localStorage.setItem('station_gallery_logo_height', currentHeight);
-                // Apply globally to document root
                 document.documentElement.style.setProperty('--gallery-logo-height', currentHeight + 'px');
             }
         }, { passive: false });
@@ -352,37 +348,57 @@
         tooltip.innerHTML = html;
     }
 
-    // --- 3. Custom Fluid Drag & Drop ---
     function initCustomDragAndDrop() {
         const container = document.getElementById('station-gallery-scroll');
         if (!container) return;
+        
         document.addEventListener('pointerdown', (e) => {
-            if (editMode && !e.target.closest('.gallery-item') && !e.target.closest('.delete-btn') && !e.target.closest('.delete-all-btn')) {
+            if (editMode && !dragState.active && !e.target.closest('.gallery-item') && !e.target.closest('.delete-btn') && !e.target.closest('.delete-all-btn')) {
                 toggleEditMode(false);
             }
         });
+        
         container.addEventListener('pointerdown', (e) => {
+            if (dragState.active) return; // Prevent multi-touch drag duplication
             if ((e.button !== 0 && e.button !== undefined) || e.target.closest('.delete-btn') || e.target.closest('.delete-all-btn')) return; 
+            
             const item = e.target.closest('.gallery-item');
             if (!item) return;
+            
             const tooltip = document.getElementById('gallery-station-tooltip');
             if (tooltip) tooltip.style.display = 'none';
+            
             const startX = e.clientX, startY = e.clientY;
             let holdTimer;
-            const cancelHold = () => { clearTimeout(holdTimer); window.removeEventListener('pointermove', checkMove); window.removeEventListener('pointerup', cancelHold); };
-            const checkMove = (moveEvt) => { if (Math.abs(moveEvt.clientX - startX) > 5 || Math.abs(moveEvt.clientY - startY) > 5) cancelHold(); };
-            window.addEventListener('pointermove', checkMove); window.addEventListener('pointerup', cancelHold);
-            if (editMode) { cancelHold(); startDrag(item, e); } 
-            else { holdTimer = setTimeout(() => { cancelHold(); startDrag(item, e); }, 1000); }
+            const cancelHold = () => { 
+                clearTimeout(holdTimer); 
+                window.removeEventListener('pointermove', checkMove); 
+                window.removeEventListener('pointerup', cancelHold); 
+            };
+            const checkMove = (moveEvt) => { 
+                if (Math.abs(moveEvt.clientX - startX) > 5 || Math.abs(moveEvt.clientY - startY) > 5) cancelHold(); 
+            };
+            
+            window.addEventListener('pointermove', checkMove); 
+            window.addEventListener('pointerup', cancelHold);
+            
+            if (editMode) { 
+                cancelHold(); 
+                startDrag(item, e); 
+            } else { 
+                holdTimer = setTimeout(() => { cancelHold(); startDrag(item, e); }, 1000); 
+            }
         });
     }
 
     function startDrag(item, e) {
+        if (dragState.active) return; // Strict lock against overlapping drags
         if (navigator.vibrate) navigator.vibrate(50);
-        toggleEditMode(true); 
-        dragState.active = true; dragState.orig = item;
         
-        // Strip transforms temporarily to get accurate baseline rect bounds
+        toggleEditMode(true); 
+        dragState.active = true; 
+        dragState.orig = item;
+        
         const oldTransform = item.style.transform;
         const oldAnimation = item.style.animation;
         item.style.transform = 'none';
@@ -393,16 +409,20 @@
 
         dragState.offsetX = e.clientX - rect.left; dragState.offsetY = e.clientY - rect.top;
         dragState.clone = item.cloneNode(true);
-        dragState.clone.classList.remove('edit-mode'); dragState.clone.classList.add('dragging-clone');
+        dragState.clone.classList.remove('edit-mode'); 
+        dragState.clone.classList.add('dragging-clone');
         
         const cloneDelBtn = dragState.clone.querySelector('.delete-btn');
         if (cloneDelBtn) cloneDelBtn.remove();
         
-        dragState.clone.style.width = rect.width + 'px'; dragState.clone.style.height = rect.height + 'px';
-        dragState.clone.style.left = (e.clientX - dragState.offsetX) + 'px'; dragState.clone.style.top = (e.clientY - dragState.offsetY) + 'px';
+        dragState.clone.style.width = rect.width + 'px'; 
+        dragState.clone.style.height = rect.height + 'px';
+        dragState.clone.style.left = (e.clientX - dragState.offsetX) + 'px'; 
+        dragState.clone.style.top = (e.clientY - dragState.offsetY) + 'px';
         
         document.body.appendChild(dragState.clone);
         item.classList.add('drag-placeholder');
+        
         window.addEventListener('pointermove', performDrag, {passive: false});
         window.addEventListener('pointerup', endDrag);
         window.addEventListener('touchmove', preventScroll, {passive: false}); 
@@ -415,10 +435,13 @@
         dragState.clone.style.left = (e.clientX - dragState.offsetX) + 'px';
         dragState.clone.style.top = (e.clientY - dragState.offsetY) + 'px';
         dragState.clone.style.display = 'none';
+        
         const elUnder = document.elementFromPoint(e.clientX, e.clientY);
         dragState.clone.style.display = 'flex';
+        
         if (!elUnder) return;
         const targetItem = elUnder.closest('.gallery-item');
+        
         if (targetItem && targetItem !== dragState.orig) {
             const container = targetItem.parentNode;
             const targetRect = targetItem.getBoundingClientRect();
@@ -428,13 +451,33 @@
 
     function endDrag(e) {
         if (!dragState.active) return;
-        window.removeEventListener('pointermove', performDrag); window.removeEventListener('pointerup', endDrag); window.removeEventListener('touchmove', preventScroll);
+        
+        window.removeEventListener('pointermove', performDrag); 
+        window.removeEventListener('pointerup', endDrag); 
+        window.removeEventListener('touchmove', preventScroll);
+        
         const finalRect = dragState.orig.getBoundingClientRect();
+        
         dragState.clone.style.transition = 'all 0.2s ease-out';
-        dragState.clone.style.left = finalRect.left + 'px'; dragState.clone.style.top = finalRect.top + 'px'; dragState.clone.style.transform = 'scale(1)';
+        dragState.clone.style.left = finalRect.left + 'px'; 
+        dragState.clone.style.top = finalRect.top + 'px'; 
+        dragState.clone.style.transform = 'scale(1)';
+        
+        const activeClone = dragState.clone;
+        const activeOrig = dragState.orig;
+        
+        dragState.active = false; // Lock released
+        
         setTimeout(() => {
-            if (dragState.clone && dragState.clone.parentNode) dragState.clone.parentNode.removeChild(dragState.clone);
-            dragState.orig.classList.remove('drag-placeholder'); dragState.active = false; saveOrder();
+            if (activeClone && activeClone.parentNode) activeClone.parentNode.removeChild(activeClone);
+            if (activeOrig) activeOrig.classList.remove('drag-placeholder'); 
+            saveOrder();
+            
+            // Execute any redraws that were blocked while dragging
+            if (dragState.needsRender) {
+                dragState.needsRender = false;
+                renderGallery();
+            }
         }, 200);
     }
 
@@ -455,20 +498,31 @@
 
     function saveOrder() {
         const order = [];
-        document.querySelectorAll('.gallery-item').forEach(item => {
-            if (item.hasAttribute('data-pi')) order.push(item.getAttribute('data-pi'));
+        document.querySelectorAll('#station-gallery-scroll .gallery-item').forEach(item => {
+            if (item.hasAttribute('data-pi')) {
+                const pi = item.getAttribute('data-pi');
+                if (!order.includes(pi)) order.push(pi);
+            }
         });
         localStorage.setItem('station_gallery_order', JSON.stringify(order));
     }
 
     // --- 4. Render Logic with Position Memory ---
     function renderGallery() {
+        if (dragState.active) {
+            // Defer the redraw until the drag operation completely finishes to avoid DOM desync
+            dragState.needsRender = true;
+            return;
+        }
+
         const container = document.getElementById("station-gallery-scroll");
         const tooltip = document.getElementById('gallery-station-tooltip');
         if (!container) return;
 
         let piKeys = Object.keys(stationGalleryDB);
         let order = JSON.parse(localStorage.getItem('station_gallery_order') || '[]');
+
+        order = [...new Set(order)];
 
         piKeys.forEach(pi => { if (!order.includes(pi)) order.push(pi); });
         localStorage.setItem('station_gallery_order', JSON.stringify(order));
@@ -477,9 +531,7 @@
         order.forEach(pi => {
             const data = stationGalleryDB[pi];
             
-            // --- GHOST SLOT IMPLEMENTATION ---
             if (!data) {
-                // Renders an invisible element to preserve historical position for deleted/lost stations
                 const ghostDiv = document.createElement("div");
                 ghostDiv.className = "gallery-item hidden-memory";
                 ghostDiv.setAttribute("data-pi", pi);
@@ -487,7 +539,6 @@
                 return;
             }
 
-            // Strict Validation (No Artifacts)
             const isDefault = !data.logoUrl || data.logoUrl.includes('default-logo');
             const isPsValid = data.program && data.program.trim().length >= 3 && !data.program.includes('?');
             if (isDefault && !isPsValid) {
@@ -516,8 +567,6 @@
             div.onclick = (e) => { 
                 if (e.target.closest('.delete-btn') || editMode) return;
                 const currentDomFreq = parseFloat(document.getElementById("data-frequency")?.textContent || "0");
-                
-                // Using the frequency currently saved in the DB
                 if (Math.abs(currentDomFreq - freqNum) < 0.02) return; 
                 tuneTo(freqNum); 
             };
@@ -575,54 +624,63 @@
                 for (let key in stationGalleryDB) { if (stationGalleryDB[key].timerId) { clearTimeout(stationGalleryDB[key].timerId); stationGalleryDB[key].timerId = null; } }
             }
             
-            // Delay to ensure DOM signal is fully updated before checking
             setTimeout(() => {
                 const freq = rawFreq, pi = data.pi?.toUpperCase(), itu = data.txInfo?.itu?.toUpperCase(), program = (data.txInfo?.tx || data.ps || "").trim();
                 const signal = parseFloat(document.getElementById("data-signal")?.textContent || "0");
                 
-                // Strict validation
                 const hasValidRDS = (pi && !pi.includes('?') && pi.length > 0 && program.length >= 3 && !program.includes('?'));
 
                 if (hasValidRDS) {
-                    // Prevent multiple PIs from occupying the same frequency physically
                     const otherPiOnFreq = Object.keys(stationGalleryDB).find(k => stationGalleryDB[k].freq === freq && k !== pi);
                     if (otherPiOnFreq) { delete stationGalleryDB[otherPiOnFreq]; }
 
-                    if (!stationGalleryDB[pi]) {
-                        stationGalleryDB[pi] = { freq, pi, itu, program, maxSignal: signal, logoUrl: null, timerId: null, fading: false };
-                        saveDB(); renderGallery(); 
-                        setTimeout(() => { if(stationGalleryDB[pi] && stationGalleryDB[pi].freq === freq) resolveLogo(pi, freq, itu, program); }, 1500);
-                    } else {
-                        let updated = false;
-                        if (stationGalleryDB[pi].timerId) { clearTimeout(stationGalleryDB[pi].timerId); stationGalleryDB[pi].timerId = null; }
-                        if (stationGalleryDB[pi].fading) { stationGalleryDB[pi].fading = false; updated = true; }
-                        
-                        // --- ENHANCED FREQUENCY PRIORITY LOGIC ---
-                        // If signal is strictly better, update freq and maxSignal
-                        if (signal > stationGalleryDB[pi].maxSignal) {
-                            stationGalleryDB[pi].maxSignal = signal;
-                            if (stationGalleryDB[pi].freq !== freq) {
-                                stationGalleryDB[pi].freq = freq; 
+                    let abortProcessing = false;
+                    const duplicateProgramPi = Object.keys(stationGalleryDB).find(k => stationGalleryDB[k].program === program && k !== pi);
+                    
+                    if (duplicateProgramPi) {
+                        if (signal > stationGalleryDB[duplicateProgramPi].maxSignal) {
+                            delete stationGalleryDB[duplicateProgramPi];
+                        } else {
+                            if (stationGalleryDB[pi]) {
+                                delete stationGalleryDB[pi];
+                                saveDB(); renderGallery();
+                            }
+                            abortProcessing = true;
+                        }
+                    }
+
+                    if (!abortProcessing) {
+                        if (!stationGalleryDB[pi]) {
+                            stationGalleryDB[pi] = { freq, pi, itu, program, maxSignal: signal, logoUrl: null, timerId: null, fading: false };
+                            saveDB(); renderGallery(); 
+                            setTimeout(() => { if(stationGalleryDB[pi] && stationGalleryDB[pi].freq === freq) resolveLogo(pi, freq, itu, program); }, 1500);
+                        } else {
+                            let updated = false;
+                            if (stationGalleryDB[pi].timerId) { clearTimeout(stationGalleryDB[pi].timerId); stationGalleryDB[pi].timerId = null; }
+                            if (stationGalleryDB[pi].fading) { stationGalleryDB[pi].fading = false; updated = true; }
+                            
+                            if (signal > stationGalleryDB[pi].maxSignal) {
+                                stationGalleryDB[pi].maxSignal = signal;
+                                if (stationGalleryDB[pi].freq !== freq) {
+                                    stationGalleryDB[pi].freq = freq; 
+                                    updated = true;
+                                }
+                            } else if (stationGalleryDB[pi].freq !== freq && signal > 35) {
+                                stationGalleryDB[pi].freq = freq;
+                                stationGalleryDB[pi].maxSignal = signal;
                                 updated = true;
                             }
-                        } else if (stationGalleryDB[pi].freq !== freq && signal > 35) {
-                            // Even if it's not higher than a historical peak, if we tune to a NEW frequency 
-                            // and the signal is very strong (>35 dBf), we assume the user prefers the active strong frequency.
-                            stationGalleryDB[pi].freq = freq;
-                            stationGalleryDB[pi].maxSignal = signal;
-                            updated = true;
+                            
+                            if (stationGalleryDB[pi].program !== program && program !== "") {
+                                stationGalleryDB[pi].program = program;
+                                updated = true;
+                                setTimeout(() => resolveLogo(pi, stationGalleryDB[pi].freq, itu, program), 1500);
+                            }
+                            if (itu && itu !== '?' && stationGalleryDB[pi].itu !== itu) { stationGalleryDB[pi].itu = itu; updated = true; }
+                            if (updated) { saveDB(); renderGallery(); if (window._hoveredGalleryPi === pi) updateTooltipContent(pi); }
                         }
-                        
-                        if (stationGalleryDB[pi].program !== program && program !== "") {
-                            stationGalleryDB[pi].program = program;
-                            updated = true;
-                            setTimeout(() => resolveLogo(pi, stationGalleryDB[pi].freq, itu, program), 1500);
-                        }
-                        if (itu && itu !== '?' && stationGalleryDB[pi].itu !== itu) { stationGalleryDB[pi].itu = itu; updated = true; }
-                        if (updated) { saveDB(); renderGallery(); if (window._hoveredGalleryPi === pi) updateTooltipContent(pi); }
                     }
                 } else {
-                    // 2-Stage Fade & Delete Timer
                     const affectedPi = Object.keys(stationGalleryDB).find(k => stationGalleryDB[k].freq === freq);
                     if (affectedPi && !stationGalleryDB[affectedPi].timerId) {
                         stationGalleryDB[affectedPi].timerId = setTimeout(() => {
