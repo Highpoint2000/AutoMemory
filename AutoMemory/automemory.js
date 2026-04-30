@@ -120,7 +120,7 @@
                     display: flex; 
                     flex-wrap: wrap; 
                     align-items: center;
-                    justify-content: space-between; 
+                    justify-content: flex-start; 
                     gap: 8px;
                     min-height: calc(var(--gallery-logo-height) + 25px); 
                     padding: 0; 
@@ -178,7 +178,7 @@
             .delete-btn:hover { background: #f00; transform: scale(1.1); }
             .gallery-item.edit-mode .delete-btn { display: block; }
             
-            /* Global Delete All Button - MOVED TO BOTTOM RIGHT */
+            /* Global Delete All Button */
             .delete-all-btn { display: none; position: absolute; bottom: 8px; right: 10px; background: rgba(200, 50, 50, 0.95); color: #fff; border-radius: 50%; width: 22px; height: 22px; font-size: 12px; font-weight: bold; line-height: 20px; text-align: center; cursor: pointer; z-index: 100; box-shadow: 0 2px 4px rgba(0,0,0,0.6); border: 1px solid rgba(255, 255, 255, 0.3); }
             .delete-all-btn:hover { background: #f00; transform: scale(1.1); }
             #station-gallery-wrapper.edit-mode .delete-all-btn { display: block; }
@@ -235,7 +235,9 @@
             .drag-placeholder > * { visibility: hidden !important; }
             
             #gallery-station-tooltip { 
-                position: fixed; background: rgba(15, 25, 30, 0.95); color: #eee; padding: 10px 14px; border-radius: 6px; border: 1px solid rgba(80, 160, 180, 0.3); font-family: Arial, sans-serif; font-size: 13px; z-index: 999999; pointer-events: none; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5); backdrop-filter: blur(4px); min-width: 150px; text-align: left; 
+                position: fixed; background: rgba(15, 25, 30, 0.95); color: #eee; padding: 10px 14px; border-radius: 6px; 
+                border: 1px solid var(--color-4, var(--color-3, #3abf9a)); 
+                font-family: Arial, sans-serif; font-size: 13px; z-index: 999999; pointer-events: none; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5); backdrop-filter: blur(4px); min-width: 150px; text-align: left; 
             }
         </style>
         `;
@@ -335,7 +337,7 @@
         if (!tooltip || !stationGalleryDB[pi]) return;
         const d = stationGalleryDB[pi];
         let ituStr = d.itu || '-';
-        let html = `<div style="font-size: 16px; font-weight: bold; color: #fff; margin-bottom: 4px;">${d.name || d.program || 'Unknown'} <span style="color: #3abf9a; font-size: 14px; margin-left: 6px;">${parseFloat(d.freq).toFixed(1)} MHz</span></div>`;
+        let html = `<div style="font-size: 16px; font-weight: bold; color: #fff; margin-bottom: 4px;">${d.name || d.program || 'Unknown'} <span style="color: var(--color-4, var(--color-3, #3abf9a)); font-size: 14px; margin-left: 6px;">${parseFloat(d.freq).toFixed(1)} MHz</span></div>`;
         html += `<div style="font-size: 11px; color: #aaa; margin-bottom: 4px;">PI: <span style="color: #eee;">${pi}</span></div>`;
         if (d.city) html += `<div style="margin-bottom: 4px;">${d.city} <span style="opacity:0.7">[${ituStr}]</span></div>`;
         if (d.erp || d.dist) {
@@ -510,102 +512,83 @@
     // --- 4. Render Logic with Position Memory ---
     function renderGallery() {
         if (dragState.active) {
+            // Defer the redraw until the drag operation completely finishes to avoid DOM desync
             dragState.needsRender = true;
             return;
         }
 
         const container = document.getElementById("station-gallery-scroll");
+        const tooltip = document.getElementById('gallery-station-tooltip');
         if (!container) return;
 
-        let order = JSON.parse(localStorage.getItem('station_gallery_order') || '[]');
         let piKeys = Object.keys(stationGalleryDB);
-        
-        // Reihenfolge synchronisieren
-        order = [...new Set(order)].filter(pi => stationGalleryDB[pi]);
+        let order = JSON.parse(localStorage.getItem('station_gallery_order') || '[]');
+
+        order = [...new Set(order)];
+
         piKeys.forEach(pi => { if (!order.includes(pi)) order.push(pi); });
         localStorage.setItem('station_gallery_order', JSON.stringify(order));
 
-        // Vorhandene DOM-Elemente sammeln
-        const existingItems = {};
-        container.querySelectorAll('.gallery-item').forEach(item => {
-            existingItems[item.getAttribute('data-pi')] = item;
-        });
+        const fragment = document.createDocumentFragment();
 
-        order.forEach((pi, index) => {
+        order.forEach(pi => {
             const data = stationGalleryDB[pi];
-            if (!data) return;
-
-            const isDefault = !data.logoUrl || data.logoUrl.includes('default-logo');
-            const isPsValid = data.program && data.program.trim().length >= 3 && !data.program.includes('?');
             
-            // "Ghost"-Check: Falls ungültig, Element entfernen falls vorhanden
-            if (isDefault && !isPsValid) {
-                if (existingItems[pi]) existingItems[pi].remove();
+            if (!data) {
+                const ghostDiv = document.createElement("div");
+                ghostDiv.className = "gallery-item hidden-memory";
+                ghostDiv.setAttribute("data-pi", pi);
+                fragment.appendChild(ghostDiv);
                 return;
             }
 
-            let div = existingItems[pi];
+            const isDefault = !data.logoUrl || data.logoUrl.includes('default-logo');
+            const isPsValid = data.program && data.program.trim().length >= 3 && !data.program.includes('?');
+            if (isDefault && !isPsValid) {
+                const ghostDiv = document.createElement("div");
+                ghostDiv.className = "gallery-item hidden-memory";
+                ghostDiv.setAttribute("data-pi", pi);
+                fragment.appendChild(ghostDiv);
+                return; 
+            }
+
             const freqNum = parseFloat(data.freq);
-            const contentHtml = isDefault 
-                ? `<img src="${defaultServerPath}" class="is-default"><span class="ps-text">${data.program || freqNum.toFixed(1) + ' MHz'}</span>` 
-                : `<img src="${data.logoUrl}" onerror="this.src='${defaultServerPath}'">`;
+            const div = document.createElement("div");
+            div.className = `gallery-item${editMode ? " edit-mode" : ""}${data.fading ? " fading" : ""}`;
+            div.setAttribute("data-pi", pi); 
+            
+            div.addEventListener('mouseenter', () => { if (!editMode && !dragState.active && tooltip) { window._hoveredGalleryPi = pi; updateTooltipContent(pi); tooltip.style.display = 'block'; } });
+            div.addEventListener('mousemove', (e) => {
+                if (editMode || dragState.active || !tooltip) return;
+                let tX = e.clientX + 15, tY = e.clientY + 15;
+                if (tX + tooltip.offsetWidth > window.innerWidth) tX = e.clientX - tooltip.offsetWidth - 15;
+                if (tY + tooltip.offsetHeight > window.innerHeight) tY = e.clientY - tooltip.offsetHeight - 15;
+                tooltip.style.left = tX + 'px'; tooltip.style.top = tY + 'px';
+            });
+            div.addEventListener('mouseleave', () => { if (tooltip) tooltip.style.display = 'none'; window._hoveredGalleryPi = null; });
+            
+            div.onclick = (e) => { 
+                if (e.target.closest('.delete-btn') || editMode) return;
+                const currentDomFreq = parseFloat(document.getElementById("data-frequency")?.textContent || "0");
+                if (Math.abs(currentDomFreq - freqNum) < 0.02) return; 
+                tuneTo(freqNum); 
+            };
+            
+            div.innerHTML = isDefault ? `<img src="${defaultServerPath}" class="is-default"><span class="ps-text">${data.program || freqNum.toFixed(1) + ' MHz'}</span>` : `<img src="${data.logoUrl}" onerror="this.src='${defaultServerPath}'">`;
 
-            if (!div) {
-                // Neues Element erstellen
-                div = document.createElement("div");
-                div.className = `gallery-item${editMode ? " edit-mode" : ""}`;
-                div.setAttribute("data-pi", pi);
-                
-                // Event-Listener nur einmalig vergeben
-                div.addEventListener('mouseenter', () => { /* ... wie im Original ... */ });
-                // ... (Hier alle Listener aus deinem Original-Code für 'div' einfügen)
-                
-                div.onclick = (e) => { 
-                    if (e.target.closest('.delete-btn') || editMode) return;
-                    tuneTo(freqNum); 
-                };
-
-                const delBtn = document.createElement("div");
-                delBtn.className = "delete-btn"; delBtn.innerHTML = "✖";
-                delBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    delete stationGalleryDB[pi]; saveDB(); renderGallery();
-                };
-                div.appendChild(delBtn);
-                container.appendChild(div);
-            }
-
-            // Nur updaten wenn nötig (verhindert Flackern)
-            const wrapper = div.querySelector('img')?.parentElement;
-            const currentInner = isDefault ? div.querySelector('.ps-text')?.textContent : div.querySelector('img')?.src;
-            const newCompare = isDefault ? (data.program || freqNum.toFixed(1) + ' MHz') : data.logoUrl;
-
-            if (currentInner !== newCompare) {
-                // Nur die inneren Elemente austauschen, nicht den ganzen Container
-                const tempWrap = document.createElement('div');
-                tempWrap.innerHTML = contentHtml;
-                
-                // Behalte den Delete-Button
-                const oldDel = div.querySelector('.delete-btn');
-                div.innerHTML = '';
-                while(tempWrap.firstChild) div.appendChild(tempWrap.firstChild);
-                if(oldDel) div.appendChild(oldDel);
-            }
-
-            // Status-Klassen synchronisieren
-            div.classList.toggle('fading', !!data.fading);
-            div.classList.toggle('edit-mode', !!editMode);
-
-            // Position im DOM prüfen (für Drag & Drop Ordnung)
-            if (container.children[index] !== div) {
-                container.insertBefore(div, container.children[index]);
-            }
+            const delBtn = document.createElement("div");
+            delBtn.className = "delete-btn"; delBtn.innerHTML = "✖";
+            delBtn.addEventListener('pointerdown', (e) => {
+                e.preventDefault(); e.stopPropagation(); if (tooltip) tooltip.style.display = 'none'; 
+                delete stationGalleryDB[pi]; saveDB(); renderGallery(); 
+            });
+            div.appendChild(delBtn);
+            
+            fragment.appendChild(div);
         });
 
-        // Verwaiste Elemente löschen
-        Object.keys(existingItems).forEach(pi => {
-            if (!stationGalleryDB[pi]) existingItems[pi].remove();
-        });
+        container.innerHTML = ''; 
+        container.appendChild(fragment);
     }
 
     // --- 5. Background Watchers ---
