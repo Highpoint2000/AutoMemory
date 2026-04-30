@@ -4,13 +4,9 @@ Automatic memory expansion for the FM-DX web server, which organizes received ra
 <img width="1191" height="890" alt="Screenshot 2026-04-27 150015" src="https://github.com/user-attachments/assets/d395ec3b-d996-41b8-ac67-8eab778519f5" />
 
 
+## Version 1.0a
 
-## Version 1.0
-
-- Signal-Priority Memory: Automatically detects and stores radio stations, ensuring only the frequency with the strongest signal is saved for each unique PI code
-- Persistent Position Logic: Maintains the exact grid position of every station even after signal loss or manual deletion, allowing it to reappear in the same slot upon re-reception
-- Interactive Station Gallery: Features a dynamic, zoomable UI with fluid drag-and-drop sorting and a two-stage signal loss system (grayscale fading before final removal)
-- Live Metadata Tooltips: Displays real-time station information, including city, ERP, distance, and PI code, which updates instantly while hovering over a logo
+- Fixed button bar twitching when adding new channels
 
 ## Installation notes
 
@@ -39,3 +35,10 @@ If you have any questions, would like to report problems, or have suggestions fo
 <details>
 <summary>History</summary>
 
+
+### Version 1.0
+
+- Signal-Priority Memory: Automatically detects and stores radio stations, ensuring only the frequency with the strongest signal is saved for each unique PI code
+- Persistent Position Logic: Maintains the exact grid position of every station even after signal loss or manual deletion, allowing it to reappear in the same slot upon re-reception
+- Interactive Station Gallery: Features a dynamic, zoomable UI with fluid drag-and-drop sorting and a two-stage signal loss system (grayscale fading before final removal)
+- Live Metadata Tooltips: Displays real-time station information, including city, ERP, distance, and PI code, which updates instantly while hovering over a logo

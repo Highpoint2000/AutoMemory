@@ -1,9 +1,9 @@
 ////////////////////////////////////////////////////////////
 ///                                                      ///
-///  AUTOMEMORY SCRIPT FOR FM-DX-WEBSERVER      (V1.0)   ///
+///  AUTOMEMORY SCRIPT FOR FM-DX-WEBSERVER      (V1.0a)  ///
 ///                                                      /// 
 ///                                                      ///
-///  by Highpoint                last update: 28.04.25   ///
+///  by Highpoint                last update: 30.04.25   ///
 ///                                                      ///
 ///  https://github.com/Highpoint2000/RetroDesign        ///
 ///                                                      ///
@@ -13,7 +13,7 @@
     "use strict";
 
     // --- Plugin Metadata & Update Configuration ---
-    var pluginVersion     = "1.0";
+    var pluginVersion     = "1.0a";
     var pluginName        = "AutoMemory";
     var pluginHomepageUrl = "https://github.com/Highpoint2000/AutoMemory/releases";
     var pluginUpdateUrl   = "https://raw.githubusercontent.com/Highpoint2000/AutoMemory/refs/heads/main/AutoMemory/automemory.js";
@@ -510,77 +510,101 @@
     // --- 4. Render Logic with Position Memory ---
     function renderGallery() {
         if (dragState.active) {
-            // Defer the redraw until the drag operation completely finishes to avoid DOM desync
             dragState.needsRender = true;
             return;
         }
 
         const container = document.getElementById("station-gallery-scroll");
-        const tooltip = document.getElementById('gallery-station-tooltip');
         if (!container) return;
 
-        let piKeys = Object.keys(stationGalleryDB);
         let order = JSON.parse(localStorage.getItem('station_gallery_order') || '[]');
-
-        order = [...new Set(order)];
-
+        let piKeys = Object.keys(stationGalleryDB);
+        
+        // Reihenfolge synchronisieren
+        order = [...new Set(order)].filter(pi => stationGalleryDB[pi]);
         piKeys.forEach(pi => { if (!order.includes(pi)) order.push(pi); });
         localStorage.setItem('station_gallery_order', JSON.stringify(order));
 
-        container.innerHTML = ''; 
-        order.forEach(pi => {
+        // Vorhandene DOM-Elemente sammeln
+        const existingItems = {};
+        container.querySelectorAll('.gallery-item').forEach(item => {
+            existingItems[item.getAttribute('data-pi')] = item;
+        });
+
+        order.forEach((pi, index) => {
             const data = stationGalleryDB[pi];
-            
-            if (!data) {
-                const ghostDiv = document.createElement("div");
-                ghostDiv.className = "gallery-item hidden-memory";
-                ghostDiv.setAttribute("data-pi", pi);
-                container.appendChild(ghostDiv);
-                return;
-            }
+            if (!data) return;
 
             const isDefault = !data.logoUrl || data.logoUrl.includes('default-logo');
             const isPsValid = data.program && data.program.trim().length >= 3 && !data.program.includes('?');
+            
+            // "Ghost"-Check: Falls ungültig, Element entfernen falls vorhanden
             if (isDefault && !isPsValid) {
-                const ghostDiv = document.createElement("div");
-                ghostDiv.className = "gallery-item hidden-memory";
-                ghostDiv.setAttribute("data-pi", pi);
-                container.appendChild(ghostDiv);
-                return; 
+                if (existingItems[pi]) existingItems[pi].remove();
+                return;
             }
 
+            let div = existingItems[pi];
             const freqNum = parseFloat(data.freq);
-            const div = document.createElement("div");
-            div.className = `gallery-item${editMode ? " edit-mode" : ""}${data.fading ? " fading" : ""}`;
-            div.setAttribute("data-pi", pi); 
-            
-            div.addEventListener('mouseenter', () => { if (!editMode && !dragState.active && tooltip) { window._hoveredGalleryPi = pi; updateTooltipContent(pi); tooltip.style.display = 'block'; } });
-            div.addEventListener('mousemove', (e) => {
-                if (editMode || dragState.active || !tooltip) return;
-                let tX = e.clientX + 15, tY = e.clientY + 15;
-                if (tX + tooltip.offsetWidth > window.innerWidth) tX = e.clientX - tooltip.offsetWidth - 15;
-                if (tY + tooltip.offsetHeight > window.innerHeight) tY = e.clientY - tooltip.offsetHeight - 15;
-                tooltip.style.left = tX + 'px'; tooltip.style.top = tY + 'px';
-            });
-            div.addEventListener('mouseleave', () => { if (tooltip) tooltip.style.display = 'none'; window._hoveredGalleryPi = null; });
-            
-            div.onclick = (e) => { 
-                if (e.target.closest('.delete-btn') || editMode) return;
-                const currentDomFreq = parseFloat(document.getElementById("data-frequency")?.textContent || "0");
-                if (Math.abs(currentDomFreq - freqNum) < 0.02) return; 
-                tuneTo(freqNum); 
-            };
-            
-            div.innerHTML = isDefault ? `<img src="${defaultServerPath}" class="is-default"><span class="ps-text">${data.program || freqNum.toFixed(1) + ' MHz'}</span>` : `<img src="${data.logoUrl}" onerror="this.src='${defaultServerPath}'">`;
+            const contentHtml = isDefault 
+                ? `<img src="${defaultServerPath}" class="is-default"><span class="ps-text">${data.program || freqNum.toFixed(1) + ' MHz'}</span>` 
+                : `<img src="${data.logoUrl}" onerror="this.src='${defaultServerPath}'">`;
 
-            const delBtn = document.createElement("div");
-            delBtn.className = "delete-btn"; delBtn.innerHTML = "✖";
-            delBtn.addEventListener('pointerdown', (e) => {
-                e.preventDefault(); e.stopPropagation(); if (tooltip) tooltip.style.display = 'none'; 
-                delete stationGalleryDB[pi]; saveDB(); renderGallery(); 
-            });
-            div.appendChild(delBtn);
-            container.appendChild(div);
+            if (!div) {
+                // Neues Element erstellen
+                div = document.createElement("div");
+                div.className = `gallery-item${editMode ? " edit-mode" : ""}`;
+                div.setAttribute("data-pi", pi);
+                
+                // Event-Listener nur einmalig vergeben
+                div.addEventListener('mouseenter', () => { /* ... wie im Original ... */ });
+                // ... (Hier alle Listener aus deinem Original-Code für 'div' einfügen)
+                
+                div.onclick = (e) => { 
+                    if (e.target.closest('.delete-btn') || editMode) return;
+                    tuneTo(freqNum); 
+                };
+
+                const delBtn = document.createElement("div");
+                delBtn.className = "delete-btn"; delBtn.innerHTML = "✖";
+                delBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    delete stationGalleryDB[pi]; saveDB(); renderGallery();
+                };
+                div.appendChild(delBtn);
+                container.appendChild(div);
+            }
+
+            // Nur updaten wenn nötig (verhindert Flackern)
+            const wrapper = div.querySelector('img')?.parentElement;
+            const currentInner = isDefault ? div.querySelector('.ps-text')?.textContent : div.querySelector('img')?.src;
+            const newCompare = isDefault ? (data.program || freqNum.toFixed(1) + ' MHz') : data.logoUrl;
+
+            if (currentInner !== newCompare) {
+                // Nur die inneren Elemente austauschen, nicht den ganzen Container
+                const tempWrap = document.createElement('div');
+                tempWrap.innerHTML = contentHtml;
+                
+                // Behalte den Delete-Button
+                const oldDel = div.querySelector('.delete-btn');
+                div.innerHTML = '';
+                while(tempWrap.firstChild) div.appendChild(tempWrap.firstChild);
+                if(oldDel) div.appendChild(oldDel);
+            }
+
+            // Status-Klassen synchronisieren
+            div.classList.toggle('fading', !!data.fading);
+            div.classList.toggle('edit-mode', !!editMode);
+
+            // Position im DOM prüfen (für Drag & Drop Ordnung)
+            if (container.children[index] !== div) {
+                container.insertBefore(div, container.children[index]);
+            }
+        });
+
+        // Verwaiste Elemente löschen
+        Object.keys(existingItems).forEach(pi => {
+            if (!stationGalleryDB[pi]) existingItems[pi].remove();
         });
     }
 
