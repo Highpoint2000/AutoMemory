@@ -7,6 +7,7 @@ Automatic memory expansion for the FM-DX web server, which organizes received ra
 ## Version 1.0a
 
 - Fixed button bar twitching when adding new channels
+- Design adjustments on mouseover
 
 ## Installation notes
 
